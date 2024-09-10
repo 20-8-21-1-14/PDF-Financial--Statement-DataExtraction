@@ -5,7 +5,7 @@ import pdf2image
 import numpy as np
 import pandas as pd
 
-pytesseract.pytesseract.tesseract_cmd = r'Path-To-PDF'
+pytesseract.pytesseract.tesseract_cmd = r'tesseract runner'
 df = pd.DataFrame(columns=['Page', 'Text'])
 keysword_constant = ['Báo cáo tình hình tài chính','Tài sản', 'Thu nhập']
 pattern_lai_truoc_thue = re.compile(r'Lợi nhuận trước thuế[\s:]*([\d\.,\-]+)', re.IGNORECASE)
@@ -16,7 +16,7 @@ pattern_von_dieu_le = r'vốn điều lệ của.*?là\s([\d\.\,]+)\sđong'
 df = pd.DataFrame(columns=['Page', 'VonDieuLe', 'LaiLoTruocThue', 'LaiLoSauThue'])
 
 def main():
-    pages = pdf2image.convert_from_path('VCB-BCTChopnhatkiemtoan2022.pdf')
+    pages = pdf2image.convert_from_path('Path-to-pdf') # path to pdf files here
     i = 0
     for page in pages:
         gray = cv2.cvtColor(np.array(page), cv2.COLOR_BGR2GRAY)
