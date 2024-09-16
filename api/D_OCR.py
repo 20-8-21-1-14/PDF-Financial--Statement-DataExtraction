@@ -48,7 +48,7 @@ def extract_financial_data(pdf_file):
                     break
         i += 1
         
-        if len(text) <= 2500:
+        if len(text) > 1000:
             if not matches_von_dieu_le:
                 matches_von_dieu_le = re.findall(pattern_von_dieu_le, text)
             if not lai_truoc_thue:
@@ -64,19 +64,17 @@ def extract_financial_data(pdf_file):
 
     if lai_truoc_thue or lai_sau_thue or lo_truoc_thue or lo_sau_thue or matches_von_dieu_le:
         data.append(
-            {
-                "TenCongTy": company_name if company_name else "",
-                "NgayBaoCao": date_match[0] if date_match else "",
-                "VonDieuLe": matches_von_dieu_le[0] if matches_von_dieu_le else "",
-                "LaiTruocThue": lai_truoc_thue[0].apply(lambda x: " - ".join(x) if isinstance(x, tuple) else x) if lai_truoc_thue else "",
-                "LoTruocThue": lo_truoc_thue if lo_truoc_thue else "",
-                "LaiSauThue": lai_sau_thue[0].apply(lambda x: " - ".join(x) if isinstance(x, tuple) else x) if lai_sau_thue else "",
-                "LoSauThue": lo_sau_thue if lo_sau_thue else "",
-            }
-        )
+        {
+            "TenCongTy": company_name if company_name else "Not found",
+            "NgayBaoCao": date_match[0] if date_match else "Not found",
+            "VonDieuLe": clean_field(matches_von_dieu_le[0]) if matches_von_dieu_le else "Not found",
+            "LaiTruocThue": " - ".join(lai_truoc_thue[0]) if lai_truoc_thue and isinstance(lai_truoc_thue[0], tuple) else clean_field(lai_truoc_thue[0]) if lai_truoc_thue else "Not found",
+            "LoTruocThue": clean_field(lo_truoc_thue) if lo_truoc_thue else "Not found",
+            "LaiSauThue": " - ".join(lai_sau_thue[0]) if lai_sau_thue and isinstance(lai_sau_thue[0], tuple) else clean_field(lai_sau_thue[0]) if lai_sau_thue else "Not found",
+            "LoSauThue": clean_field(lo_sau_thue) if lo_sau_thue else "Not found",
+        })
 
 
-    print(data)
     df = pd.DataFrame(
         data=data,
         columns=[
@@ -91,3 +89,8 @@ def extract_financial_data(pdf_file):
     )
     print(df)
     return df.to_dict(orient='records') 
+
+def clean_field(value):
+    if isinstance(value, list) and len(value) == 1 and "This field may not be blank." in value:
+        return ""
+    return value
