@@ -10,12 +10,13 @@ pytesseract.pytesseract.tesseract_cmd = r"C:/Program Files/Tesseract-OCR/tessera
 
 # Precompile all patterns once at the start for efficiency
 patterns = {
-    "lai_truoc_thue": re.compile(r'TỎNG LỢI NHUẬN TRƯỚC THUÊ[\s:]\s*(\(?\d{1,3}(?:\.\d{3})*\)?)\s+(\d{1,3}(?:\.\d{3})*)\s+(\d{1,3}(?:\.\d{3})*)', re.IGNORECASE),
+    "lai_truoc_thue": re.compile(r'TỎNG LỢI NHUẬN TRƯỚC THUÊ[\s:]?\s*(\(?-?\d{1,3}(?:\.\d{3})*\)?)\s+(\(?-?\d{1,3}(?:\.\d{3})*\)?)', re.IGNORECASE),
     "lo_truoc_thue": re.compile(r'Lỗ kế toán trước thuế[\s:]*([\d\.,\-]+)', re.IGNORECASE),
-    "lai_sau_thue": re.compile(r'LỢI NHUẬN SAU THUẾ[\s:]\s*(\(?\d{1,3}(?:\.\d{3})*\)?)\s+(\d{1,3}(?:\.\d{3})*)\s+(\d{1,3}(?:\.\d{3})*)', re.IGNORECASE),
+    "lai_sau_thue": re.compile(r'LỢI NHUẬN SAU THUẾ[\s:]?\s*(\(?-?\d{1,3}(?:\.\d{3})*\)?)\s+(\(?-?\d{1,3}(?:\.\d{3})*\)?)', re.IGNORECASE),
     "lo_sau_thue": re.compile(r'Lỗ kế toán sau thuế[\s:]*([\d\.,\-]+)', re.IGNORECASE),
     "von_dieu_le": re.compile(r'vốn điều lệ của.*?là\s([\d\.\,]+)\sđong'),
-    "date_regex": re.compile(r'ngày\s+\d{1,2}\s+tháng\s+\d{1,2}\s+năm\s+\d{4}')
+    "date_regex": re.compile(r'ngày\s+\d{1,2}\s+tháng\s+\d{1,2}\s+năm\s+\d{4}'),
+    "company_name": re.compile(r'(.*?\n.*?)(?=\s*Báo cáo tài chính)', re.IGNORECASE),
 }
 
 def extract_text_from_image(page):
@@ -28,11 +29,7 @@ def process_page(i, page, company_name, matches_von_dieu_le, lai_truoc_thue, lo_
     
     if i == 0:
         date_match.extend(patterns["date_regex"].findall(text))
-        lines = text.splitlines()
-        for line in lines:
-            if len(line) > 0 and not re.search(r'\d', line):
-                company_name.append(line.strip())
-                break
+        company_name.extend(patterns["company_name"].findall(text))
 
     if len(text) > 1000:
         if not matches_von_dieu_le:
@@ -80,7 +77,7 @@ def extract_financial_data(pdf_file):
     if lai_truoc_thue or lai_sau_thue or lo_truoc_thue or lo_sau_thue or matches_von_dieu_le:
         data.append(
             {
-                "TenCongTy": clean_field(company_name[0]) if company_name else "",
+                "TenCongTy": clean_field(company_name[0].replace('\n','')) if company_name else "",
                 "NgayBaoCao": clean_field(date_match[0]) if date_match else "",
                 "VonDieuLe": process_tuple_or_string(matches_von_dieu_le[0]) if matches_von_dieu_le else "",
                 "LaiTruocThue": process_tuple_or_string(lai_truoc_thue[0]) if lai_truoc_thue else "",
