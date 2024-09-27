@@ -4,7 +4,7 @@ from rest_framework import status
 import pytesseract
 from rest_framework.parsers import MultiPartParser, FormParser
 from .serializers import FinancialDataSerializer
-from .D_OCR import extract_financial_data
+from .D_OCR import process_document
 
 pytesseract.pytesseract.tesseract_cmd = r"C:/Program Files/Tesseract-OCR/tesseract.exe"
 
@@ -17,7 +17,7 @@ class FinancialDataExtractionView(APIView):
         if not pdf_file:
             return Response({"error": "PDF file is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        data = extract_financial_data(pdf_file) 
+        data = process_document(pdf_file) 
 
         # Return the extracted data
         serializer = FinancialDataSerializer(data=data, many=True)
