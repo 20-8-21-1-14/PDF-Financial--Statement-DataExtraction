@@ -1,4 +1,4 @@
-import pytesseract
+import easyocr
 import re
 import cv2
 import pdf2image
@@ -6,8 +6,13 @@ import numpy as np
 import pandas as pd
 import pickle
 from concurrent.futures import ThreadPoolExecutor
+import os
 
-pytesseract.pytesseract.tesseract_cmd = r"C:/Program Files/Tesseract-OCR/tesseract.exe"
+easyocr_reader = easyocr.Reader(['en', 'vi'], gpu=False)  # You can enable GPU by setting gpu=True
+
+MODEL_PATH = os.path.join("api", "resource", "text_classification_model.pkl")
+with open(MODEL_PATH, "rb") as f:
+    text_classification_model = pickle.load(f)
 
 patterns = {
     "lai_truoc_thue": re.compile(r'T.*G LỢI NHUẬN TRƯỚC TH.*[\s:]?\s*((\(?-?\d{1,3}(?:\.\d{3})*\)?\s*)+)', re.IGNORECASE),
@@ -53,21 +58,45 @@ def clean_text(text):
     cleaned_lines = [line.strip() for line in text.splitlines() if line.strip()]
     return ' '.join(cleaned_lines)
 
+def preprocess_text(text):
+    """
+    Preprocess the input text for better classification.
+    :param text: Raw input text.
+    :return: Preprocessed text.
+    """
+    processed_text = text.lower().strip()
+    return processed_text
+
 def detect_document_type(text):
-    with open("api\\resource\\text_classification_model.pkl", "rb") as f:
-        model = pickle.load(f)
-    doc = text
-    predicted_label = model.predict([doc])
+    """
+    Detect the type of document based on the text using a pre-trained classification model.
+    :param text: Text content of the document.
+    :return: Document type as an integer (0, 1, or -1).
+    """
+    # Preprocess the text before classification
+    preprocessed_text = preprocess_text(text)
+    
+    # Use the loaded model to predict the document type
+    predicted_label = text_classification_model.predict([preprocessed_text])
+
+    # Return the corresponding document type
     if predicted_label == 0:
         return 0
-    elif predicted_label == 1: 
+    elif predicted_label == 1:
         return 1
     else:
         return -1
 
 def process_financial_statement(pages):
     with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = [executor.submit(process_page, i, page, company_name, company_tax_code, matches_von_dieu_le, lai_truoc_thue, lo_truoc_thue, lai_sau_thue, lo_sau_thue, date_match, years) for i, page in enumerate(pages)]
+        futures = [
+            executor.submit(
+                process_page, 
+                i, page, company_name, company_tax_code, matches_von_dieu_le, 
+                lai_truoc_thue, lo_truoc_thue, lai_sau_thue, lo_sau_thue, date_match, years
+            ) 
+            for i, page in enumerate(pages)
+        ]
         for future in futures:
             future.result()
 
@@ -121,8 +150,6 @@ def process_financial_statement(pages):
     return df.to_dict(orient='records')
 
 def process_business_registration(pages):
-    
-    print(company_address, date_match)
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [executor.submit(process_business_registration_page, i, page, company_name, company_tax_code, matches_von_dieu_le, date_match, company_address) for i, page in enumerate(pages)]
         for future in futures:
@@ -173,14 +200,33 @@ def extract_date(text):
     else:
         return None
 
-def extract_text_from_image(page):
-    gray = cv2.cvtColor(np.array(page), cv2.COLOR_BGR2GRAY)
-    thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
-    return pytesseract.image_to_string(thresh, lang="vie")
+def extract_text_from_image(image_path):
+    """
+    Extracts text from an image using EasyOCR.
+    :param image_path: Path to the image file.
+    :return: Extracted text as a string.
+    """
+    result = easyocr_reader.readtext(image_path, detail=0)  # detail=0 returns only the text
+    return ' '.join(result) 
 
 def process_page(i, page, company_name, company_taxCode, matches_von_dieu_le, lai_truoc_thue, lo_truoc_thue, lai_sau_thue, lo_sau_thue, date_match, years):
+    """
+    Processes a single page to extract relevant financial information.
+    :param i: Page index.
+    :param page: Path to the page image or image object.
+    :param company_name: List to store extracted company names.
+    :param company_taxCode: List to store extracted company tax codes.
+    :param matches_von_dieu_le: List to store 'von dieu le' matches.
+    :param lai_truoc_thue: List to store 'lai truoc thue' matches.
+    :param lo_truoc_thue: List to store 'lo truoc thue' matches.
+    :param lai_sau_thue: List to store 'lai sau thue' matches.
+    :param lo_sau_thue: List to store 'lo sau thue' matches.
+    :param date_match: List to store extracted date matches.
+    :param years: List to store extracted years.
+    """
     text = extract_text_from_image(page)
     text = clean_text(text)
+
     if i == 0:
         company_name.extend(patterns["company_name"].findall(text))
     if not date_match:
