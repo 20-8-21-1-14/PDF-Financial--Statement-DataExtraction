@@ -8,29 +8,32 @@ import pickle
 from concurrent.futures import ThreadPoolExecutor
 import os
 
-easyocr_reader = easyocr.Reader(['en', 'vi'], gpu=False)  # You can enable GPU by setting gpu=True
+easyocr_reader = easyocr.Reader(['en', 'vi'], gpu=False, verbose=False)  # You can enable GPU by setting gpu=True
 
 MODEL_PATH = os.path.join("api", "resource", "text_classification_model.pkl")
 with open(MODEL_PATH, "rb") as f:
     text_classification_model = pickle.load(f)
 
 patterns = {
-    "lai_truoc_thue": re.compile(r'T.*G LỢI NHUẬN TRƯỚC TH.*[\s:]?\s*((\(?-?\d{1,3}(?:\.\d{3})*\)?\s*)+)', re.IGNORECASE),
+    "lai_truoc_thue": re.compile(r'T.*G LỢI NHUẬN TRƯỚC TH.*[\s:]?\s*((\(?-?\d{1,3}(?:\.\d{3})*\)?\s*)+)',
+                                 re.IGNORECASE),
     "lo_truoc_thue": re.compile(r'Lỗ kế toán trước thuế[\s:]*([\d\.,\-]+)', re.IGNORECASE),
-    "lai_sau_thue": re.compile(r'.*?LỢI NHUẬN SAU THUẾ[\s:]?\s*(\(?-?\d{1,3}(?:\.\d{3})*\)?)\s+(\(?-?\d{1,3}(?:\.\d{3})*\)?)', re.IGNORECASE),
+    "lai_sau_thue": re.compile(
+        r".*?LỢI NHUẬN SAU THUẾ[\s:]?\s*(\(?-?\d{1,3}(?:\.\d{3})*\)?)\s+(\(?-?\d{1,3}(?:\.\d{3})*\)?)", re.IGNORECASE),
     "lo_sau_thue": re.compile(r'Lỗ kế toán sau thuế[\s:]*([\d\.,\-]+)', re.IGNORECASE),
     "von_dieu_le": re.compile(r'vốn điều lệ của.*?là\s([\d\.\,]+)\sđong'),
     "date_regex": re.compile(r'Giấy phép Thành lập và Hoạt động số.*? năm (\d{4})'),
     "company_name": re.compile(r'(.*?)(?=\s*Báo cáo tài chính)', re.IGNORECASE),
     "company_taxCode": re.compile(r'mã số doanh nghiệp\s*(\d{10})', re.IGNORECASE),
-    "year_col":  re.compile(r'(\d{4})\s+(\d{4})\s+Triệu VND', re.IGNORECASE)
+    "year_col": re.compile(r'(\d{4})\s+(\d{4})\s+Triệu VND', re.IGNORECASE)
 }
 
 patterns_process_business_registration = {
     "company_name": re.compile(r'Tên công ty v.*t b.*ng t.*Việt[\s:]?\s+(.+?)\s+Tên c.*g', re.IGNORECASE),
     "von_dieu_le": re.compile(r'v.*?n đ.*?u l.*?.*?[\s:]?\s([\d\.\,]+)\sđ.*ng', re.IGNORECASE),
     "company_taxCode": re.compile(r'Mã số doanh nghiệp[\s:]?\s*(\d+)', re.IGNORECASE),
-    "tru_so_chinh": re.compile(r"[ĐD]ịa\s*(?:chỉ|chí)?\s*(?:trụ|trú)?\s*(?:sở|số)?\s*(?:chính)?\s*(.+?)\s+[Đđ]iện thoại:", re.IGNORECASE),
+    "tru_so_chinh": re.compile(
+        r"[ĐD]ịa\s*(?:chỉ|chí)?\s*(?:trụ|trú)?\s*(?:sở|số)?\s*(?:chính)?\s*(.+?)\s+[Đđ]iện thoại:", re.IGNORECASE),
     "nam_thanh_lap": re.compile(r'Đăng ký lần đầu[\s:]?\s*ngày\s+(\d{1,2})\s+tháng\s+(\d{1,2})\s+năm\s+(\d{4})')
 }
 
@@ -44,19 +47,22 @@ lai_sau_thue = []
 lo_sau_thue = []
 date_match = []
 company_name = []
-years = []
+global years
 company_address = []
+
 
 def extract_text_and_detect(pages):
     first_page_text = extract_text_from_image(pages[0])
     first_page_text = clean_text(first_page_text)
     document_type = detect_document_type(first_page_text)
-    
+
     return document_type
+
 
 def clean_text(text):
     cleaned_lines = [line.strip() for line in text.splitlines() if line.strip()]
     return ' '.join(cleaned_lines)
+
 
 def preprocess_text(text):
     """
@@ -67,6 +73,7 @@ def preprocess_text(text):
     processed_text = text.lower().strip()
     return processed_text
 
+
 def detect_document_type(text):
     """
     Detect the type of document based on the text using a pre-trained classification model.
@@ -75,7 +82,7 @@ def detect_document_type(text):
     """
     # Preprocess the text before classification
     preprocessed_text = preprocess_text(text)
-    
+
     # Use the loaded model to predict the document type
     predicted_label = text_classification_model.predict([preprocessed_text])
 
@@ -87,14 +94,17 @@ def detect_document_type(text):
     else:
         return -1
 
+
 def process_financial_statement(pages):
+    years = []
+
     with ThreadPoolExecutor(max_workers=4) as executor:
         futures = [
             executor.submit(
-                process_page, 
-                i, page, company_name, company_tax_code, matches_von_dieu_le, 
+                process_page,
+                i, page, company_name, company_tax_code, matches_von_dieu_le,
                 lai_truoc_thue, lo_truoc_thue, lai_sau_thue, lo_sau_thue, date_match, years
-            ) 
+            )
             for i, page in enumerate(pages)
         ]
         for future in futures:
@@ -120,15 +130,17 @@ def process_financial_statement(pages):
                 "accounting_loss_before_tax": accounting_loss_before_tax,
                 "accounting_loss_after_tax": accounting_loss_after_tax,
             })
-        
+
         data.append(
             {
-                "tax_code": clean_field(company_tax_code[0].replace('\n','')) if company_tax_code else "",
-                "company_name": clean_field(company_name[0].replace('\n',' ')) if company_name else "",
+                "tax_code": clean_field(company_tax_code[0].replace('\n', '')) if company_tax_code else "",
+                "company_name": clean_field(company_name[0].replace('\n', ' ')) if company_name else "",
                 "address": "Some Address",
                 "start_years_of_business": clean_field(date_match[0]) if date_match else "",
                 "is_business": True,
-                "dl": int(process_tuple_or_string(matches_von_dieu_le[0]).replace('.', '')) if matches_von_dieu_le else None,  # Von Dieu Le
+                "dl": int(
+                    process_tuple_or_string(matches_von_dieu_le[0]).replace('.', '')) if matches_von_dieu_le else None,
+                # Von Dieu Le
                 "financial_statement": financial_statement
             }
         )
@@ -149,9 +161,11 @@ def process_financial_statement(pages):
     print(df)
     return df.to_dict(orient='records')
 
+
 def process_business_registration(pages):
     with ThreadPoolExecutor(max_workers=2) as executor:
-        futures = [executor.submit(process_business_registration_page, i, page, company_name, company_tax_code, matches_von_dieu_le, date_match, company_address) for i, page in enumerate(pages)]
+        futures = [executor.submit(process_business_registration_page, i, page, company_name, company_tax_code,
+                                   matches_von_dieu_le, date_match, company_address) for i, page in enumerate(pages)]
         for future in futures:
             future.result()
 
@@ -159,24 +173,26 @@ def process_business_registration(pages):
     if date_match:
         date_match_process = extract_date(date_match[0])
 
-    print("data",company_tax_code[0],company_name[0], "Diachi:",company_address, date_match_process, matches_von_dieu_le[0])
+    print("data", company_tax_code[0], company_name[0], "Diachi:", company_address, date_match_process,
+          matches_von_dieu_le[0])
     financial_statement.append({
-                "year": None,
-                "accounting_loss_before_tax": None,
-                "accounting_loss_after_tax": None,
-            })
-    
+        "year": None,
+        "accounting_loss_before_tax": None,
+        "accounting_loss_after_tax": None,
+    })
+
     data.append(
-            {
-                "tax_code": clean_field(company_tax_code[0].replace('\n','')) if company_tax_code else "",
-                "company_name": clean_field(company_name[0].replace('\n',' ')) if company_name else "",
-                "address": clean_field(company_address[0]) if company_address else "",
-                "start_years_of_business": date_match_process if date_match_process else "",
-                "is_business": True,
-                "dl": int(process_tuple_or_string(matches_von_dieu_le[0]).replace('.', '')) if matches_von_dieu_le else None,
-                "financial_statement": financial_statement
-            }
-        )
+        {
+            "tax_code": clean_field(company_tax_code[0].replace('\n', '')) if company_tax_code else "",
+            "company_name": clean_field(company_name[0].replace('\n', ' ')) if company_name else "",
+            "address": clean_field(company_address[0]) if company_address else "",
+            "start_years_of_business": date_match_process if date_match_process else "",
+            "is_business": True,
+            "dl": int(
+                process_tuple_or_string(matches_von_dieu_le[0]).replace('.', '')) if matches_von_dieu_le else None,
+            "financial_statement": financial_statement
+        }
+    )
     df = pd.DataFrame(
         data=data,
         columns=[
@@ -190,7 +206,7 @@ def process_business_registration(pages):
         ],
     )
     return df.to_dict(orient='records')
-    
+
 
 def extract_date(text):
     if text:
@@ -200,6 +216,7 @@ def extract_date(text):
     else:
         return None
 
+
 def extract_text_from_image(image_path):
     """
     Extracts text from an image using EasyOCR.
@@ -207,9 +224,11 @@ def extract_text_from_image(image_path):
     :return: Extracted text as a string.
     """
     result = easyocr_reader.readtext(image_path, detail=0)  # detail=0 returns only the text
-    return ' '.join(result) 
+    return ' '.join(result)
 
-def process_page(i, page, company_name, company_taxCode, matches_von_dieu_le, lai_truoc_thue, lo_truoc_thue, lai_sau_thue, lo_sau_thue, date_match, years):
+
+def process_page(i, page, company_name, company_taxCode, matches_von_dieu_le, lai_truoc_thue, lo_truoc_thue,
+                 lai_sau_thue, lo_sau_thue, date_match, years):
     """
     Processes a single page to extract relevant financial information.
     :param i: Page index.
@@ -224,9 +243,11 @@ def process_page(i, page, company_name, company_taxCode, matches_von_dieu_le, la
     :param date_match: List to store extracted date matches.
     :param years: List to store extracted years.
     """
+    if i > 15:
+        return
     text = extract_text_from_image(page)
     text = clean_text(text)
-
+    print(text)
     if i == 0:
         company_name.extend(patterns["company_name"].findall(text))
     if not date_match:
@@ -251,7 +272,8 @@ def process_page(i, page, company_name, company_taxCode, matches_von_dieu_le, la
             lo_sau_thue.extend(patterns["lo_sau_thue"].findall(text))
 
 
-def process_business_registration_page(i, page, company_name, company_taxCode, matches_von_dieu_le, date_match, comp_address):
+def process_business_registration_page(i, page, company_name, company_taxCode, matches_von_dieu_le, date_match,
+                                       comp_address):
     text = extract_text_from_image(page)
     text = clean_text(text)
 
@@ -277,16 +299,21 @@ def clean_field(value):
         return cleaned_values[0]
     return value
 
+
 def process_tuple_or_string(field):
     if isinstance(field, tuple):
         return " - ".join(field)
     return clean_field(field)
 
+
 def extract_financial_data(pdf_file):
-    pages = pdf2image.convert_from_bytes(pdf_file.read())
-    
+    pages = pdf2image.convert_from_bytes(pdf_file.read(), poppler_path=r'D:\\pj\RPA_PJ\\PDF-Financial--Statement-DataExtraction\\api\\resource\\poppler-24.07.0\\Library\\bin')
+    years = []
     with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = [executor.submit(process_page, i, page, company_name, company_tax_code, matches_von_dieu_le, lai_truoc_thue, lo_truoc_thue, lai_sau_thue, lo_sau_thue, date_match, years) for i, page in enumerate(pages)]
+        futures = [
+            executor.submit(process_page, i, page, company_name, company_tax_code, matches_von_dieu_le, lai_truoc_thue,
+                            lo_truoc_thue, lai_sau_thue, lo_sau_thue, date_match, years) for i, page in
+            enumerate(pages)]
         for future in futures:
             future.result()
 
@@ -310,15 +337,17 @@ def extract_financial_data(pdf_file):
                 "accounting_loss_before_tax": accounting_loss_before_tax,
                 "accounting_loss_after_tax": accounting_loss_after_tax,
             })
-        
+
         data.append(
             {
-                "tax_code": clean_field(company_tax_code[0].replace('\n','')) if company_tax_code else "",
-                "company_name": clean_field(company_name[0].replace('\n',' ')) if company_name else "",
+                "tax_code": clean_field(company_tax_code[0].replace('\n', '')) if company_tax_code else "",
+                "company_name": clean_field(company_name[0].replace('\n', ' ')) if company_name else "",
                 "address": "Some Address",
                 "start_years_of_business": clean_field(date_match[0]) if date_match else "",
                 "is_business": True,
-                "dl": int(process_tuple_or_string(matches_von_dieu_le[0]).replace('.', '')) if matches_von_dieu_le else None,  # Von Dieu Le
+                "dl": int(
+                    process_tuple_or_string(matches_von_dieu_le[0]).replace('.', '')) if matches_von_dieu_le else None,
+                # Von Dieu Le
                 "financial_statement": financial_statement
             }
         )
@@ -339,15 +368,15 @@ def extract_financial_data(pdf_file):
     print(df)
     return df.to_dict(orient='records')
 
+
 def process_document(pdf_file):
     pages = pdf2image.convert_from_bytes(pdf_file.read())
     document_type = extract_text_and_detect(pages)
     print(f"Detected document type: {document_type}")
-    
+
     if document_type == 0:
         return process_financial_statement(pages)
     elif document_type == 1:
         return process_business_registration(pages)
     else:
         return print("Unknown document type. Cannot process.")
-
