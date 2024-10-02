@@ -29,7 +29,7 @@ patterns = {
 }
 
 patterns_process_business_registration = {
-    "company_name": re.compile(r'Tên công ty v.*t b.*ng t.*Việt[\s:]?\s+(.+?)\s+Tên c.*g', re.IGNORECASE),
+    "company_name": re.compile(r'Tên.* ty v.*t b.*ng t.*Việt[\s:]?\s+(.+?)\s+Tên .* ty', re.IGNORECASE),
     "von_dieu_le": re.compile(r'v.*?n đ.*?u l.*?.*?[\s:]?\s([\d\.\,]+)\sđ.*ng', re.IGNORECASE),
     "company_taxCode": re.compile(r'Mã số doanh nghiệp[\s:]?\s*(\d+)', re.IGNORECASE),
     "tru_so_chinh": re.compile(
@@ -52,6 +52,7 @@ company_address = []
 
 
 def extract_text_and_detect(pages):
+    print(pages)
     first_page_text = extract_text_from_image(pages[0])
     first_page_text = clean_text(first_page_text)
     document_type = detect_document_type(first_page_text)
@@ -173,8 +174,8 @@ def process_business_registration(pages):
     if date_match:
         date_match_process = extract_date(date_match[0])
 
-    print("data", company_tax_code[0], company_name[0], "Diachi:", company_address, date_match_process,
-          matches_von_dieu_le[0])
+    print("data", company_tax_code, company_name, "Diachi:", company_address, date_match_process,
+          matches_von_dieu_le)
     financial_statement.append({
         "year": None,
         "accounting_loss_before_tax": None,
@@ -217,13 +218,15 @@ def extract_date(text):
         return None
 
 
-def extract_text_from_image(image_path):
+def extract_text_from_image(page):
     """
     Extracts text from an image using EasyOCR.
     :param image_path: Path to the image file.
     :return: Extracted text as a string.
     """
-    result = easyocr_reader.readtext(image_path, detail=0)  # detail=0 returns only the text
+    gray = cv2.cvtColor(np.array(page), cv2.COLOR_BGR2GRAY)
+    thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+    result = easyocr_reader.readtext(thresh, detail=0)  # detail=0 returns only the text
     return ' '.join(result)
 
 
@@ -276,7 +279,7 @@ def process_business_registration_page(i, page, company_name, company_taxCode, m
                                        comp_address):
     text = extract_text_from_image(page)
     text = clean_text(text)
-
+    print(text)
     if not company_name:
         company_name.extend(patterns_process_business_registration["company_name"].findall(text))
     if not date_match:
