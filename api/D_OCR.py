@@ -9,17 +9,17 @@ from concurrent.futures import ThreadPoolExecutor
 import os
 
 easyocr_reader = easyocr.Reader(['en', 'vi'], gpu=False, verbose=False)  # You can enable GPU by setting gpu=True
-
+max_page_limit = 13 
 MODEL_PATH = os.path.join("api", "resource", "text_classification_model.pkl")
 with open(MODEL_PATH, "rb") as f:
     text_classification_model = pickle.load(f)
 
 patterns = {
-    "lai_truoc_thue": re.compile(r'T.*G LỢI NHUẬN TRƯỚC TH.*[\s:]?\s*((\(?-?\d{1,3}(?:\.\d{3})*\)?\s*)+)',
+    "lai_truoc_thue": re.compile(r'T.*?LỢI NHUẬN TRƯỚC THU[ÊÉẾE].*?[\s:]?\s*((\(?-?\d{1,3}(?:\.\d{3})*(?:,\d+)?\)?\s*)+)',
                                  re.IGNORECASE),
     "lo_truoc_thue": re.compile(r'Lỗ kế toán trước thuế[\s:]*([\d\.,\-]+)', re.IGNORECASE),
     "lai_sau_thue": re.compile(
-        r".*?LỢI NHUẬN SAU THUẾ[\s:]?\s*(\(?-?\d{1,3}(?:\.\d{3})*\)?)\s+(\(?-?\d{1,3}(?:\.\d{3})*\)?)", re.IGNORECASE),
+        r".*?L[ỢÔƠO]I NHU[AÂẬẠ]N SAU THU[ÊÉẾE][\s:]?\s*(\(?-?\d{1,3}(?:\.\d{3})*\)?)\s+(\(?-?\d{1,3}(?:\.\d{3})*\)?)", re.IGNORECASE),
     "lo_sau_thue": re.compile(r'Lỗ kế toán sau thuế[\s:]*([\d\.,\-]+)', re.IGNORECASE),
     "von_dieu_le": re.compile(r'vốn điều lệ của.*?là\s([\d\.\,]+)\sđong'),
     "date_regex": re.compile(r'Giấy phép Thành lập và Hoạt động số.*? năm (\d{4})'),
@@ -29,7 +29,7 @@ patterns = {
 }
 
 patterns_process_business_registration = {
-    "company_name": re.compile(r'Tên.* ty v.*t b.*ng t.*Việt[\s:]?\s+(.+?)\s+Tên .* ty', re.IGNORECASE),
+    "company_name": re.compile(r'Tên.*?ty.*?viết bằng V[iíìị][êệeẹ]t[:\s]+(.+?)\s+Tên', re.IGNORECASE),
     "von_dieu_le": re.compile(r'v.*?n đ.*?u l.*?.*?[\s:]?\s([\d\.\,]+)\sđ.*ng', re.IGNORECASE),
     "company_taxCode": re.compile(r'Mã số doanh nghiệp[\s:]?\s*(\d+)', re.IGNORECASE),
     "tru_so_chinh": re.compile(
@@ -52,7 +52,6 @@ company_address = []
 
 
 def extract_text_and_detect(pages):
-    print(pages)
     first_page_text = extract_text_from_image(pages[0])
     first_page_text = clean_text(first_page_text)
     document_type = detect_document_type(first_page_text)
@@ -246,11 +245,11 @@ def process_page(i, page, company_name, company_taxCode, matches_von_dieu_le, la
     :param date_match: List to store extracted date matches.
     :param years: List to store extracted years.
     """
-    if i > 15:
-        return
     text = extract_text_from_image(page)
     text = clean_text(text)
-    print(text)
+    
+    if(i==12 or i == 11):
+        print(text)
     if i == 0:
         company_name.extend(patterns["company_name"].findall(text))
     if not date_match:
@@ -279,7 +278,7 @@ def process_business_registration_page(i, page, company_name, company_taxCode, m
                                        comp_address):
     text = extract_text_from_image(page)
     text = clean_text(text)
-    print(text)
+
     if not company_name:
         company_name.extend(patterns_process_business_registration["company_name"].findall(text))
     if not date_match:
@@ -315,8 +314,8 @@ def extract_financial_data(pdf_file):
     with ThreadPoolExecutor(max_workers=4) as executor:
         futures = [
             executor.submit(process_page, i, page, company_name, company_tax_code, matches_von_dieu_le, lai_truoc_thue,
-                            lo_truoc_thue, lai_sau_thue, lo_sau_thue, date_match, years) for i, page in
-            enumerate(pages)]
+                            lo_truoc_thue, lai_sau_thue, lo_sau_thue, date_match, years) 
+                            for i, page in enumerate(pages) if i <= max_page_limit]
         for future in futures:
             future.result()
 

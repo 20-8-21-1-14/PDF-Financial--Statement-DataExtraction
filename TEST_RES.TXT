@@ -1,0 +1,22 @@
+[
+    {
+        "tax_code": "0100112437",
+        "company_name": "Ngân hàng Thương mại Cổ Ngoại thưong Việt Nam",
+        "address": "Some Address",
+        "start_years_of_business": "2008",
+        "is_business": true,
+        "dl": null,
+        "financial_statement": [
+            {
+                "year": 2022,
+                "accounting_loss_before_tax": "37368091.00",
+                "accounting_loss_after_tax": "29919054.00"
+            },
+            {
+                "year": 2021,
+                "accounting_loss_before_tax": "27485843.00",
+                "accounting_loss_after_tax": "22016833.00"
+            }
+        ]
+    }
+]
