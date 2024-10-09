@@ -8,6 +8,8 @@ import pickle
 from concurrent.futures import ThreadPoolExecutor
 import os
 
+os.environ["OMP_THREAD_LIMIT"] = "6"
+
 easyocr_reader = easyocr.Reader(['en', 'vi'], gpu=False, verbose=False)  # You can enable GPU by setting gpu=True
 max_page_limit = 13 
 MODEL_PATH = os.path.join("api", "resource", "text_classification_model.pkl")
@@ -24,7 +26,7 @@ patterns = {
     "von_dieu_le": re.compile(r'vốn điều lệ của.*?là\s([\d\.\,]+)\sđong'),
     "date_regex": re.compile(r'Giấy phép Thành lập và Hoạt động số.*? năm (\d{4})'),
     "company_name": re.compile(r'(.*?)(?=\s*Báo cáo tài chính)', re.IGNORECASE),
-    "company_taxCode": re.compile(r'mã số doanh nghiệp\s*(\d{10})', re.IGNORECASE),
+    "company_taxCode": re.compile(r'mã số doanh nghiệp.*?\s*(\d{10})', re.IGNORECASE),
     "year_col": re.compile(r'(\d{4})\s+(\d{4})\s+Triệu VND', re.IGNORECASE)
 }
 
@@ -55,7 +57,6 @@ def extract_text_and_detect(pages):
     first_page_text = extract_text_from_image(pages[0])
     first_page_text = clean_text(first_page_text)
     document_type = detect_document_type(first_page_text)
-
     return document_type
 
 
@@ -105,7 +106,7 @@ def process_financial_statement(pages):
                 i, page, company_name, company_tax_code, matches_von_dieu_le,
                 lai_truoc_thue, lo_truoc_thue, lai_sau_thue, lo_sau_thue, date_match, years
             )
-            for i, page in enumerate(pages)
+            for i, page in enumerate(pages) if i <= max_page_limit
         ]
         for future in futures:
             future.result()
@@ -246,10 +247,8 @@ def process_page(i, page, company_name, company_taxCode, matches_von_dieu_le, la
     :param years: List to store extracted years.
     """
     text = extract_text_from_image(page)
+
     text = clean_text(text)
-    
-    if(i==12 or i == 11):
-        print(text)
     if i == 0:
         company_name.extend(patterns["company_name"].findall(text))
     if not date_match:
@@ -315,7 +314,7 @@ def extract_financial_data(pdf_file):
         futures = [
             executor.submit(process_page, i, page, company_name, company_tax_code, matches_von_dieu_le, lai_truoc_thue,
                             lo_truoc_thue, lai_sau_thue, lo_sau_thue, date_match, years) 
-                            for i, page in enumerate(pages) if i <= max_page_limit]
+                            for i, page in enumerate(pages) if i <= 3 and i > 7 and i <= max_page_limit]
         for future in futures:
             future.result()
 
@@ -374,7 +373,6 @@ def extract_financial_data(pdf_file):
 def process_document(pdf_file):
     pages = pdf2image.convert_from_bytes(pdf_file.read())
     document_type = extract_text_and_detect(pages)
-    print(f"Detected document type: {document_type}")
 
     if document_type == 0:
         return process_financial_statement(pages)
