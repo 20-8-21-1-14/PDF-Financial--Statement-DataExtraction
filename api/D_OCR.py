@@ -192,8 +192,8 @@ def process_business_registration(pages):
     if date_match:
         date_match_process = extract_date(date_match[0])
 
-    print("data", company_tax_code, company_name, "Diachi:", company_address, date_match_process,
-          matches_von_dieu_le)
+    # print("data", company_tax_code, company_name, "Diachi:", company_address, date_match_process,
+    #       matches_von_dieu_le)
     financial_statement.append({
         "year": None,
         "accounting_loss_before_tax": None,
@@ -352,7 +352,7 @@ def extract_financial_data(pdf_file):
 
             # Append the data for each year
             financial_statement.append({
-                "year": int(y),  # Convert year to integer
+                "year": int(y),
                 "accounting_loss_before_tax": accounting_loss_before_tax,
                 "accounting_loss_after_tax": accounting_loss_after_tax,
             })
