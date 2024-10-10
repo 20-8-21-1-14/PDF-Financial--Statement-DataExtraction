@@ -39,18 +39,18 @@ patterns_process_business_registration = {
     "nam_thanh_lap": re.compile(r'Đăng ký lần đầu[\s:]?\s*ngày\s+(\d{1,2})\s+tháng\s+(\d{1,2})\s+năm\s+(\d{4})')
 }
 
-data = []
-financial_statement = []
-matches_von_dieu_le = []
-company_tax_code = []
-lai_truoc_thue = []
-lo_truoc_thue = []
-lai_sau_thue = []
-lo_sau_thue = []
-date_match = []
-company_name = []
+global data
+global financial_statement
+global matches_von_dieu_le
+global company_tax_code
+global lai_truoc_thue
+global lo_truoc_thue
+global lai_sau_thue
+global lo_sau_thue
+global date_match
+global company_name
 global years
-company_address = []
+global company_address
 
 
 def extract_text_and_detect(pages):
@@ -97,6 +97,16 @@ def detect_document_type(text):
 
 
 def process_financial_statement(pages):
+    data = []
+    financial_statement = []
+    matches_von_dieu_le = []
+    company_tax_code = []
+    lai_truoc_thue = []
+    lo_truoc_thue = []
+    lai_sau_thue = []
+    lo_sau_thue = []
+    date_match = []
+    company_name = []
     years = []
 
     with ThreadPoolExecutor(max_workers=4) as executor:
@@ -164,6 +174,14 @@ def process_financial_statement(pages):
 
 
 def process_business_registration(pages):
+    data = []
+    financial_statement = []
+    matches_von_dieu_le = []
+    company_tax_code = []
+    date_match = []
+    company_name = []
+    company_address = []
+    
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [executor.submit(process_business_registration_page, i, page, company_name, company_tax_code,
                                    matches_von_dieu_le, date_match, company_address) for i, page in enumerate(pages)]
@@ -226,7 +244,7 @@ def extract_text_from_image(page):
     """
     gray = cv2.cvtColor(np.array(page), cv2.COLOR_BGR2GRAY)
     thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
-    result = easyocr_reader.readtext(thresh, detail=0)  # detail=0 returns only the text
+    result = easyocr_reader.readtext(thresh, detail=0)
     return ' '.join(result)
 
 
